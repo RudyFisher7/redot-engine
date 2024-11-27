@@ -35,7 +35,7 @@
 
 #include "modules/register_module_types.h"
 
-void initialize_a_star_grid_3d_module(ModuleInitializationLevel p_level);
-void uninitialize_a_star_grid_3d_module(ModuleInitializationLevel p_level);
+void initialize_grid_pathfinding_3d_module(ModuleInitializationLevel p_level);
+void uninitialize_grid_pathfinding_3d_module(ModuleInitializationLevel p_level);
 
 #endif // A_STAR_GRID_3D_REGISTER_TYPES_H
