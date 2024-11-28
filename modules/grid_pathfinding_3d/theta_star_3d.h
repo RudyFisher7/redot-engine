@@ -30,8 +30,7 @@ protected:
 	bool _is_dirty = false;
 
 public:
-    ThetaStar3D();
-    ThetaStar3D(Vector3i dimensions);
+    ThetaStar3D() = default;
     virtual ~ThetaStar3D();
 
     void reserve(const uint32_t new_capacity);
@@ -67,7 +66,7 @@ public:
 	void enable_line_of_sight_check(bool value = true);
 
     bool add_point(const Vector3i position);
-    bool remove_point(const Vector3i position); //todo:: unit test for sure
+    bool remove_point(const Vector3i position); //todo:: unit test
 
     bool disable_point_by_position(const Vector3i position, const bool disable = true);
     bool disable_point_by_id(const int64_t id, const bool disable = true);

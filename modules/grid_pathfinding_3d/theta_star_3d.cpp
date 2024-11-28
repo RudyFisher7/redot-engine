@@ -1,16 +1,9 @@
 #include "theta_star_3d.h"
 
+#include "common/error_private.h"
+
 
 namespace ThetaStar {
-
-
-ThetaStar3D::ThetaStar3D() { // todo:: enforce abstractness
-    //ERR_FAIL_MSG("ThetaStar3D can't be created directly. It is an abstract class.");
-}
-
-
-ThetaStar3D::ThetaStar3D(Vector3i dimensions): _dimensions(dimensions) { // todo:: enforce abstractness
-}
 
 
 ThetaStar3D::~ThetaStar3D() {
@@ -92,7 +85,7 @@ Vector3i ThetaStar3D::get_point_position(const int64_t id) const {
     if (_points.lookup(id, point)) {
         result = point->position;
     } else {
-        result = Vector3i(-1, -1, -1); //todo:: this is not a valid error return case if overridden in GDScript
+    	ERR_FAIL_V_MSG(_dimensions, "Could not get the point's position. Returning dimensions instead.");
     }
 
     return result;
@@ -210,9 +203,9 @@ PackedInt64Array ThetaStar3D::get_id_path_from_positions(const Vector3i from, co
         }
     }
 
-    for (LocalVector<const Point<Vector3i>*>::Iterator it = result_points.begin(); it != result_points.end(); ++it) {
-        result.push_back((*it)->id);
-    }
+	for (const Point<Vector3i> *result_point : result_points) {
+		result.push_back(result_point->id);
+	}
 
     return result;
 }
@@ -240,9 +233,9 @@ TypedArray<Vector3i> ThetaStar3D::get_point_path_from_positions(const Vector3i f
         }
     }
 
-    for (LocalVector<const Point<Vector3i>*>::Iterator it = result_points.begin(); it != result_points.end(); ++it) {
-        result.push_back((*it)->position);
-    }
+	for (const Point<Vector3i> *result_point : result_points) {
+		result.push_back(result_point->position);
+	}
 
     return result;
 }
@@ -258,8 +251,8 @@ PackedInt64Array ThetaStar3D::get_id_path_from_ids(const int64_t from, const int
         _get_point_path(from_point, to_point, result_points);
     }
 
-    for (LocalVector<const Point<Vector3i>*>::Iterator it = result_points.begin(); it != result_points.end(); ++it) {
-        result.push_back((*it)->id);
+    for (const Point<Vector3i> *result_point : result_points) {
+        result.push_back(result_point->id);
     }
 
     return result;
@@ -276,8 +269,8 @@ TypedArray<Vector3i> ThetaStar3D::get_point_path_from_ids(const int64_t from, co
         _get_point_path(from_point, to_point, result_points);
     }
 
-    for (LocalVector<const Point<Vector3i>*>::Iterator it = result_points.begin(); it != result_points.end(); ++it) {
-        result.push_back((*it)->position);
+    for (const Point<Vector3i> *result_point : result_points) {
+        result.push_back(result_point->position);
     }
 
     return result;
@@ -289,8 +282,6 @@ TypedArray<Vector3> ThetaStar3D::get_point_path_from_off_graph_positions(const V
     LocalVector<const Point<Vector3i>*> result_points;
     bool is_from_valid = false;
     bool is_to_valid = false;
-    int64_t from_id = 0;
-    int64_t to_id = 0;
     Point<Vector3i>* from_point = nullptr;
     Point<Vector3i>* to_point = nullptr;
 
@@ -301,16 +292,16 @@ TypedArray<Vector3> ThetaStar3D::get_point_path_from_off_graph_positions(const V
     is_to_valid = _is_position_valid(to, true);
 
     if (is_from_valid && is_to_valid) {
-        from_id = _hash_position(from);
-        to_id = _hash_position(to);
+	    int64_t from_id = _hash_position(from);
+	    int64_t to_id = _hash_position(to);
 
         if (_points.lookup(from_id, from_point) && _points.lookup(to_id, to_point)) {
             _get_point_path(from_point, to_point, result_points);
         }
     }
 
-    for (LocalVector<const Point<Vector3i>*>::Iterator it = result_points.begin(); it != result_points.end(); ++it) {
-        result.push_back(Vector3((*it)->position));
+    for (const Point<Vector3i> *result_point : result_points) {
+        result.push_back(Vector3(result_point->position));
     }
 
     if (!result.is_empty()) {
@@ -339,15 +330,10 @@ void ThetaStar3D::enable_line_of_sight_check(bool value) {
 bool ThetaStar3D::add_point(const Vector3i position) {
     bool result = false;
 
-    result = _is_position_valid(position, true);
-
-    if (result) {
+    if (_is_position_valid(position, true)) {
         int64_t id = _hash_position(position);
 
-    	if (has_id(id)) {
-    		Vector3i pos = get_point_position(id);
-    		int i = 0;
-    	}
+    	ERR_FAIL_COND_V_MSG(has_id(id), false, "Point already exists.");
 
         Point<Vector3i>* point = memnew(Point<Vector3i>);
 
@@ -355,6 +341,7 @@ bool ThetaStar3D::add_point(const Vector3i position) {
         point->position = position;
 
         _points.set(id, point);
+    	result = true;
     }
 
     return result;
@@ -364,9 +351,7 @@ bool ThetaStar3D::add_point(const Vector3i position) {
 bool ThetaStar3D::remove_point(const Vector3i position) {
     bool result = false;
 
-    result = _is_position_valid(position);
-
-    if (result) {
+    if (_is_position_valid(position)) {
         int64_t id = _hash_position(position);
 
         Point<Vector3i>* point = nullptr;
@@ -377,8 +362,8 @@ bool ThetaStar3D::remove_point(const Vector3i position) {
                 (*it.value)->neighbors.remove(id);
             }
 
-            memdelete(point);
             _points.remove(id);
+            memdelete(point);
         }
     }
 
@@ -450,13 +435,14 @@ bool ThetaStar3D::disconnect_points(const Vector3i from, const Vector3i to, cons
         if (from_point->neighbors.has(to_id)) {
             from_point->neighbors.remove(to_id);
         }
+
+	    if (bidirectional) {
+	        if (to_point->neighbors.has(from_id)) {
+	            to_point->neighbors.remove(from_id);
+	        }
+	    }
     }
 
-    if (bidirectional) {
-        if (to_point->neighbors.has(from_id)) {
-            to_point->neighbors.remove(from_id);
-        }
-    }
 
     return result;
 }
