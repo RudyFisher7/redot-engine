@@ -615,7 +615,7 @@ void ThetaStar3D::_expand_point(Point<Vector3i>* const point, const Point<Vector
 
         if (
                 point->previous_point != nullptr
-                && (is_line_of_sight_check_enabled && _has_line_of_sight(point->previous_point->position, neighbor->position))
+                && (_is_line_of_sight_check_enabled && _has_line_of_sight(point->previous_point->position, neighbor->position))
         ) {
             _expand_point_helper(point->previous_point, neighbor, to, open, sorter);
 
