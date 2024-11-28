@@ -10,7 +10,7 @@
 
 #include "core/templates/oa_hash_map.h"
 
-// final todos:: 
+// final todos::
 // - document how it is easy to do cell size in gdscript - just multiply each Vector3i by the cell size.
 // - document how to use for good line of sight checks:
 //      - use an external cell size and offset and have this graph stay at a cell size of 1,1,1
@@ -24,19 +24,22 @@ class ThetaStar3D: public RefCounted {
 protected:
     Vector3i _dimensions = Vector3i(1, 1, 1);
     OAHashMap<int64_t, Point<Vector3i>*> _points;
-    int64_t number_of_disabled_points = 0;
-    uint8_t closed_counter = 0u;
-
+	bool _is_line_of_sight_check_enabled = false;
+    int64_t _number_of_disabled_points = 0;
+    uint8_t _closed_counter = 0u;
+	bool _is_dirty = false;
 
 public:
     ThetaStar3D();
+    ThetaStar3D(Vector3i dimensions);
     virtual ~ThetaStar3D();
-    
+
     void reserve(const uint32_t new_capacity);
     void clear();
 
     Vector3i get_dimensions() const;
     int64_t get_size() const;
+	bool is_line_of_sight_check_enabled() const;
     int64_t get_point_count() const;
     int64_t get_disabled_point_count() const;
     bool is_empty() const;
@@ -60,6 +63,9 @@ public:
     TypedArray<Vector3i> get_point_path_from_ids(const int64_t from, const int64_t to);
     TypedArray<Vector3> get_point_path_from_off_graph_positions(const Vector3 from, const Vector3 to);
 
+	void set_dimensions(const Vector3i dimensions);
+	void enable_line_of_sight_check(bool value = true);
+
     bool add_point(const Vector3i position);
     bool remove_point(const Vector3i position); //todo:: unit test for sure
 
@@ -82,7 +88,7 @@ protected:
     void _expand_point(Point<Vector3i>* const point, const Point<Vector3i>* const to, LocalVector<Point<Vector3i>*>& open, SortArray<Point<Vector3i>*, Point<Vector3i>::Comparator>& sorter);
     void _expand_point_helper(Point<Vector3i>* const previous_point, Point<Vector3i>* const neighbor, const Point<Vector3i>* const to, LocalVector<Point<Vector3i>*>& open, SortArray<Point<Vector3i>*, Point<Vector3i>::Comparator>& sorter);
     bool _has_line_of_sight_helper(LineOfSightArguments& args); //todo:: unit test for sure
-    
+
     virtual bool _has_line_of_sight(Vector3i from, Vector3i to);
     virtual int64_t _hash_position(Vector3i position);
     virtual real_t _compute_edge_cost(int64_t from, int64_t to);

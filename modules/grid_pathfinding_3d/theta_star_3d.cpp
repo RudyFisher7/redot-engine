@@ -9,6 +9,10 @@ ThetaStar3D::ThetaStar3D() { // todo:: enforce abstractness
 }
 
 
+ThetaStar3D::ThetaStar3D(Vector3i dimensions): _dimensions(dimensions) { // todo:: enforce abstractness
+}
+
+
 ThetaStar3D::~ThetaStar3D() {
     clear();
 }
@@ -25,6 +29,7 @@ void ThetaStar3D::clear() {
 	}
 
     _points.clear();
+	_is_dirty = false;
 }
 
 
@@ -42,12 +47,17 @@ int64_t ThetaStar3D::get_size() const {
 }
 
 
+bool ThetaStar3D::is_line_of_sight_check_enabled() const {
+	return _is_line_of_sight_check_enabled;
+}
+
+
 int64_t ThetaStar3D::get_point_count() const {
     return static_cast<int64_t>(_points.get_num_elements());
 }
 
 int64_t ThetaStar3D::get_disabled_point_count() const {
-    return number_of_disabled_points;
+    return _number_of_disabled_points;
 }
 
 
@@ -312,6 +322,20 @@ TypedArray<Vector3> ThetaStar3D::get_point_path_from_off_graph_positions(const V
 }
 
 
+void ThetaStar3D::set_dimensions(const Vector3i dimensions) {
+	_dimensions = dimensions;
+
+	if (!_points.is_empty()) {
+		_is_dirty = true;
+	}
+}
+
+
+void ThetaStar3D::enable_line_of_sight_check(bool value) {
+	_is_line_of_sight_check_enabled = value;
+}
+
+
 bool ThetaStar3D::add_point(const Vector3i position) {
     bool result = false;
 
@@ -319,6 +343,11 @@ bool ThetaStar3D::add_point(const Vector3i position) {
 
     if (result) {
         int64_t id = _hash_position(position);
+
+    	if (has_id(id)) {
+    		Vector3i pos = get_point_position(id);
+    		int i = 0;
+    	}
 
         Point<Vector3i>* point = memnew(Point<Vector3i>);
 
@@ -374,9 +403,9 @@ bool ThetaStar3D::disable_point_by_id(const int64_t id, const bool disable) {
     if (_points.lookup(id, point)) {
 
         if (disable && point->enabled) {
-            number_of_disabled_points++;
+            _number_of_disabled_points++;
         } else if (!disable && !point->enabled) {
-            number_of_disabled_points--;
+            _number_of_disabled_points--;
         }
 
         point->enabled = !disable;
@@ -438,6 +467,7 @@ void ThetaStar3D::_bind_methods() {
     ClassDB::bind_method(D_METHOD("clear"), &ThetaStar3D::clear);
     ClassDB::bind_method(D_METHOD("get_dimensions"), &ThetaStar3D::get_dimensions);
     ClassDB::bind_method(D_METHOD("get_size"), &ThetaStar3D::get_size);
+    ClassDB::bind_method(D_METHOD("is_line_of_sight_check_enabled"), &ThetaStar3D::is_line_of_sight_check_enabled);
     ClassDB::bind_method(D_METHOD("get_point_count"), &ThetaStar3D::get_point_count);
     ClassDB::bind_method(D_METHOD("get_disabled_point_count"), &ThetaStar3D::get_disabled_point_count);
     ClassDB::bind_method(D_METHOD("is_empty"), &ThetaStar3D::is_empty);
@@ -457,6 +487,8 @@ void ThetaStar3D::_bind_methods() {
     ClassDB::bind_method(D_METHOD("get_id_path_from_ids", "from", "to"), &ThetaStar3D::get_id_path_from_ids);
     ClassDB::bind_method(D_METHOD("get_point_path_from_ids", "from", "to"), &ThetaStar3D::get_point_path_from_ids);
     ClassDB::bind_method(D_METHOD("get_point_path_from_off_graph_positions", "from", "to"), &ThetaStar3D::get_point_path_from_off_graph_positions);
+    ClassDB::bind_method(D_METHOD("set_dimensions", "dimensions"), &ThetaStar3D::set_dimensions);
+    ClassDB::bind_method(D_METHOD("enable_line_of_sight_check", "value"), &ThetaStar3D::enable_line_of_sight_check, DEFVAL(true));
     ClassDB::bind_method(D_METHOD("add_point", "position"), &ThetaStar3D::add_point, DEFVAL(1.0));
     ClassDB::bind_method(D_METHOD("remove_point", "position"), &ThetaStar3D::remove_point);
     ClassDB::bind_method(D_METHOD("disable_point_by_position", "position", "disabled"), &ThetaStar3D::disable_point_by_position, DEFVAL(true));
@@ -469,7 +501,7 @@ void ThetaStar3D::_bind_methods() {
     GDVIRTUAL_BIND(_compute_edge_cost, "from", "to");
     GDVIRTUAL_BIND(_estimate_edge_cost, "from", "to");
 
-    ADD_PROPERTY(PropertyInfo(Variant::VECTOR3I, "_dimensions"), "", "get_dimensions");
+    // ADD_PROPERTY(PropertyInfo(Variant::VECTOR3I, "dimensions"), "set_dimensions", "get_dimensions");
 }
 
 
@@ -556,7 +588,7 @@ void ThetaStar3D::_get_point_path(Point<Vector3i>* const from, Point<Vector3i>* 
     SortArray<Point<Vector3i>*, Point<Vector3i>::Comparator> sorter;
     bool is_path_found = false;
 
-    closed_counter++;
+    _closed_counter++;
 
     from->cost_from_start = 0;
     from->cost_to_target = _estimate_edge_cost(from->id, to->id);
@@ -572,7 +604,7 @@ void ThetaStar3D::_get_point_path(Point<Vector3i>* const from, Point<Vector3i>* 
             sorter.pop_heap(0, open.size(), open.ptr());
             open.remove_at(open.size() - 1);
 
-            current->closed_counter = closed_counter;
+            current->closed_counter = _closed_counter;
 
             _expand_point(current, to, open, sorter);
         }
@@ -597,7 +629,7 @@ void ThetaStar3D::_expand_point(Point<Vector3i>* const point, const Point<Vector
 
         if (
                 point->previous_point != nullptr
-                && _has_line_of_sight(point->previous_point->position, neighbor->position)
+                && (is_line_of_sight_check_enabled && _has_line_of_sight(point->previous_point->position, neighbor->position))
         ) {
             _expand_point_helper(point->previous_point, neighbor, to, open, sorter);
 
@@ -616,7 +648,7 @@ void ThetaStar3D::_expand_point_helper(Point<Vector3i>* const previous_point, Po
     if (use_neighbor_for_path_finding) {
         use_neighbor_for_path_finding = (
                 neighbor_cost_from_start < neighbor->cost_from_start
-                || neighbor->opened_counter != closed_counter
+                || neighbor->opened_counter != _closed_counter
         );
     }
 
@@ -625,9 +657,9 @@ void ThetaStar3D::_expand_point_helper(Point<Vector3i>* const previous_point, Po
         neighbor->cost_to_target = _estimate_edge_cost(neighbor->id, to->id);
         neighbor->previous_point = previous_point;
 
-        if (neighbor->opened_counter != closed_counter) {
+        if (neighbor->opened_counter != _closed_counter) {
             open.push_back(neighbor);
-            neighbor->opened_counter = closed_counter;
+            neighbor->opened_counter = _closed_counter;
 
             sorter.push_heap(0, open.size() - 1, 0, neighbor, open.ptr());
         } else {
@@ -743,7 +775,7 @@ bool ThetaStar3D::_has_line_of_sight(Vector3i from, Vector3i to) {
         sign_z = 1;
     }
 
-    // we are moving farthest along x axis
+    // we are moving farthest along x-axis
     if (distance_x >= distance_y && distance_x >= distance_z) {
         LineOfSightArguments y_args(
                 from.y,
@@ -796,7 +828,7 @@ bool ThetaStar3D::_has_line_of_sight(Vector3i from, Vector3i to) {
             // small_axes_arrived = from_x == to_x && from_z == to_z;
         }
 
-    // we are moving farthest along y axis
+    // we are moving farthest along y-axis
     } else if (distance_y >= distance_x && distance_y >= distance_z) {
         LineOfSightArguments x_args(
                 from.x,
@@ -849,7 +881,7 @@ bool ThetaStar3D::_has_line_of_sight(Vector3i from, Vector3i to) {
             // small_axes_arrived = from_y == to_y && from_z == to_z;
         }
 
-    // we are moving farthest along z axis
+    // we are moving farthest along z-axis
     } else if (distance_z >= distance_x && distance_z >= distance_y) {
         LineOfSightArguments x_args(
                 from.x,
@@ -914,6 +946,22 @@ int64_t ThetaStar3D::_hash_position(Vector3i position) {
     if (GDVIRTUAL_CALL(_hash_position, position, result)) {
         return result;
     }
+
+	int64_t dimension_x = _dimensions.x;
+	int64_t dimension_y = _dimensions.y;
+
+	dimension_x <<= 1;
+	dimension_y <<= 1;
+
+	int64_t x = position.x;
+	int64_t y = position.y;
+	int64_t z = position.z;
+
+	x += _dimensions.x - 1;
+	y += _dimensions.y - 1;
+	z += _dimensions.z - 1;
+
+	result = x + (dimension_x * y) + (dimension_x * dimension_y * z);
 
     return result;
 }
