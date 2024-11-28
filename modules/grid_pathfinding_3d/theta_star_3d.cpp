@@ -6,6 +6,10 @@
 namespace ThetaStar {
 
 
+ThetaStar3D::ThetaStar3D() : _dimensions(1, 1, 1) {
+}
+
+
 ThetaStar3D::~ThetaStar3D() {
     clear();
 }
@@ -42,6 +46,11 @@ int64_t ThetaStar3D::get_size() const {
 
 bool ThetaStar3D::is_line_of_sight_check_enabled() const {
 	return _is_line_of_sight_check_enabled;
+}
+
+
+bool ThetaStar3D::is_dirty() const {
+	return _is_dirty;
 }
 
 
@@ -145,7 +154,7 @@ bool ThetaStar3D::has_id(const int64_t id) {
 }
 
 
-bool ThetaStar3D::has_point(const Vector3i position) {
+bool ThetaStar3D::has_position(const Vector3i position) {
     bool result = false;
     int64_t id = _hash_position(position);
 
@@ -181,7 +190,7 @@ TypedArray<Vector3i> ThetaStar3D::get_point_connections(const Vector3i position)
 }
 
 
-PackedInt64Array ThetaStar3D::get_id_path_from_positions(const Vector3i from, const Vector3i to) {
+PackedInt64Array ThetaStar3D::get_id_path_from_grid_positions(const Vector3i from, const Vector3i to) {
     PackedInt64Array result;
     LocalVector<const Point<Vector3i>*> result_points;
     bool is_from_valid = false;
@@ -211,7 +220,7 @@ PackedInt64Array ThetaStar3D::get_id_path_from_positions(const Vector3i from, co
 }
 
 
-TypedArray<Vector3i> ThetaStar3D::get_point_path_from_positions(const Vector3i from, const Vector3i to) {
+TypedArray<Vector3i> ThetaStar3D::get_grid_path_from_grid_positions(const Vector3i from, const Vector3i to) {
     TypedArray<Vector3i> result;
     LocalVector<const Point<Vector3i>*> result_points;
     bool is_from_valid = false;
@@ -241,6 +250,40 @@ TypedArray<Vector3i> ThetaStar3D::get_point_path_from_positions(const Vector3i f
 }
 
 
+TypedArray<Vector3> ThetaStar3D::get_world_path_from_world_positions(const Vector3 from, const Vector3 to, const Vector3 cell_size) {
+	TypedArray<Vector3> result;
+	LocalVector<const Point<Vector3i>*> result_points;
+	bool is_from_valid = false;
+	bool is_to_valid = false;
+	int64_t from_id = 0;
+	int64_t to_id = 0;
+	Point<Vector3i>* from_point = nullptr;
+	Point<Vector3i>* to_point = nullptr;
+
+	Vector3i grid_from = Vector3(from) / cell_size;
+	Vector3i grid_to = Vector3(to) / cell_size;
+
+	is_from_valid = _is_position_valid(grid_from, true);
+	is_to_valid = _is_position_valid(grid_to, true);
+
+	if (is_from_valid && is_to_valid) {
+		from_id = _hash_position(grid_from);
+		to_id = _hash_position(grid_to);
+
+		if (_points.lookup(from_id, from_point) && _points.lookup(to_id, to_point)) {
+			_get_point_path(from_point, to_point, result_points);
+		}
+	}
+
+	for (const Point<Vector3i> *result_point : result_points) {
+		Vector3 grid_position = result_point->position;
+		result.push_back(grid_position * cell_size);
+	}
+
+	return result;
+}
+
+
 PackedInt64Array ThetaStar3D::get_id_path_from_ids(const int64_t from, const int64_t to) {
     PackedInt64Array result;
     LocalVector<const Point<Vector3i>*> result_points;
@@ -259,7 +302,7 @@ PackedInt64Array ThetaStar3D::get_id_path_from_ids(const int64_t from, const int
 }
 
 
-TypedArray<Vector3i> ThetaStar3D::get_point_path_from_ids(const int64_t from, const int64_t to) {
+TypedArray<Vector3i> ThetaStar3D::get_grid_path_from_ids(const int64_t from, const int64_t to) {
     TypedArray<Vector3i> result;
     LocalVector<const Point<Vector3i>*> result_points;
     Point<Vector3i>* from_point = nullptr;
@@ -277,7 +320,26 @@ TypedArray<Vector3i> ThetaStar3D::get_point_path_from_ids(const int64_t from, co
 }
 
 
-TypedArray<Vector3> ThetaStar3D::get_point_path_from_off_graph_positions(const Vector3 from, const Vector3 to) {
+TypedArray<Vector3> ThetaStar3D::get_world_path_from_ids(const int64_t from, const int64_t to, const Vector3 cell_size) {
+	TypedArray<Vector3> result;
+	LocalVector<const Point<Vector3i>*> result_points;
+	Point<Vector3i>* from_point = nullptr;
+	Point<Vector3i>* to_point = nullptr;
+
+	if (_points.lookup(from, from_point) && _points.lookup(to, to_point)) {
+		_get_point_path(from_point, to_point, result_points);
+	}
+
+	for (const Point<Vector3i> *result_point : result_points) {
+		Vector3 grid_position = result_point->position;
+		result.push_back(grid_position * cell_size);
+	}
+
+	return result;
+}
+
+
+TypedArray<Vector3> ThetaStar3D::get_grid_path_from_off_grid_positions(const Vector3 from, const Vector3 to) {
     TypedArray<Vector3> result;
     LocalVector<const Point<Vector3i>*> result_points;
     bool is_from_valid = false;
@@ -310,6 +372,46 @@ TypedArray<Vector3> ThetaStar3D::get_point_path_from_off_graph_positions(const V
     }
 
     return result;
+}
+
+
+TypedArray<Vector3> ThetaStar3D::get_world_path_from_off_grid_world_positions(const Vector3 from, const Vector3 to, const Vector3 cell_size) {
+	TypedArray<Vector3> result;
+	LocalVector<const Point<Vector3i>*> result_points;
+	bool is_from_valid = false;
+	bool is_to_valid = false;
+	Point<Vector3i>* from_point = nullptr;
+	Point<Vector3i>* to_point = nullptr;
+
+	Vector3 grid_from = from / cell_size;
+	Vector3 grid_to = to / cell_size;
+
+	from_point = _get_closest_point_toward(grid_from, grid_to);
+	to_point = _get_closest_point_toward(grid_to, grid_from);
+
+	is_from_valid = _is_position_valid(grid_from, true);
+	is_to_valid = _is_position_valid(grid_to, true);
+
+	if (is_from_valid && is_to_valid) {
+		int64_t from_id = _hash_position(grid_from);
+		int64_t to_id = _hash_position(grid_to);
+
+		if (_points.lookup(from_id, from_point) && _points.lookup(to_id, to_point)) {
+			_get_point_path(from_point, to_point, result_points);
+		}
+	}
+
+	for (const Point<Vector3i> *result_point : result_points) {
+		Vector3 grid_position = result_point->position;
+		result.push_back(grid_position * cell_size);
+	}
+
+	if (!result.is_empty()) {
+		result.insert(0, from);
+		result.insert(result.size() - 1, to);
+	}
+
+	return result;
 }
 
 
@@ -454,6 +556,7 @@ void ThetaStar3D::_bind_methods() {
     ClassDB::bind_method(D_METHOD("get_dimensions"), &ThetaStar3D::get_dimensions);
     ClassDB::bind_method(D_METHOD("get_size"), &ThetaStar3D::get_size);
     ClassDB::bind_method(D_METHOD("is_line_of_sight_check_enabled"), &ThetaStar3D::is_line_of_sight_check_enabled);
+    ClassDB::bind_method(D_METHOD("is_dirty"), &ThetaStar3D::is_dirty);
     ClassDB::bind_method(D_METHOD("get_point_count"), &ThetaStar3D::get_point_count);
     ClassDB::bind_method(D_METHOD("get_disabled_point_count"), &ThetaStar3D::get_disabled_point_count);
     ClassDB::bind_method(D_METHOD("is_empty"), &ThetaStar3D::is_empty);
@@ -465,14 +568,17 @@ void ThetaStar3D::_bind_methods() {
     ClassDB::bind_method(D_METHOD("is_id_disabled", "id"), &ThetaStar3D::is_id_disabled);
     ClassDB::bind_method(D_METHOD("is_position_disabled", "id"), &ThetaStar3D::is_position_disabled);
     ClassDB::bind_method(D_METHOD("has_id", "id"), &ThetaStar3D::has_id);
-    ClassDB::bind_method(D_METHOD("has_point", "position"), &ThetaStar3D::has_point);
+    ClassDB::bind_method(D_METHOD("has_position", "position"), &ThetaStar3D::has_position);
     ClassDB::bind_method(D_METHOD("get_points"), &ThetaStar3D::get_points);
     ClassDB::bind_method(D_METHOD("get_point_connections", "position"), &ThetaStar3D::get_point_connections);
-    ClassDB::bind_method(D_METHOD("get_id_path_from_positions", "from", "to"), &ThetaStar3D::get_id_path_from_positions);
-    ClassDB::bind_method(D_METHOD("get_point_path_from_positions", "from", "to"), &ThetaStar3D::get_point_path_from_positions);
+    ClassDB::bind_method(D_METHOD("get_id_path_from_grid_positions", "from", "to"), &ThetaStar3D::get_id_path_from_grid_positions);
+    ClassDB::bind_method(D_METHOD("get_grid_path_from_grid_positions", "from", "to"), &ThetaStar3D::get_grid_path_from_grid_positions);
+    ClassDB::bind_method(D_METHOD("get_world_path_from_world_positions", "from", "to", "cell_size"), &ThetaStar3D::get_world_path_from_world_positions, DEFVAL(Vector3(1.0, 1.0, 1.0)));
     ClassDB::bind_method(D_METHOD("get_id_path_from_ids", "from", "to"), &ThetaStar3D::get_id_path_from_ids);
-    ClassDB::bind_method(D_METHOD("get_point_path_from_ids", "from", "to"), &ThetaStar3D::get_point_path_from_ids);
-    ClassDB::bind_method(D_METHOD("get_point_path_from_off_graph_positions", "from", "to"), &ThetaStar3D::get_point_path_from_off_graph_positions);
+    ClassDB::bind_method(D_METHOD("get_grid_path_from_ids", "from", "to"), &ThetaStar3D::get_grid_path_from_ids);
+    ClassDB::bind_method(D_METHOD("get_world_path_from_ids", "from", "to", "cell_size"), &ThetaStar3D::get_world_path_from_ids, DEFVAL(Vector3(1.0, 1.0, 1.0)));
+    ClassDB::bind_method(D_METHOD("get_grid_path_from_off_grid_positions", "from", "to"), &ThetaStar3D::get_grid_path_from_off_grid_positions);
+    ClassDB::bind_method(D_METHOD("get_world_path_from_off_grid_world_positions", "from", "to", "cell_size"), &ThetaStar3D::get_world_path_from_off_grid_world_positions, DEFVAL(Vector3(1.0, 1.0, 1.0)));
     ClassDB::bind_method(D_METHOD("set_dimensions", "dimensions"), &ThetaStar3D::set_dimensions);
     ClassDB::bind_method(D_METHOD("enable_line_of_sight_check", "value"), &ThetaStar3D::enable_line_of_sight_check, DEFVAL(true));
     ClassDB::bind_method(D_METHOD("add_point", "position"), &ThetaStar3D::add_point, DEFVAL(1.0));
@@ -550,7 +656,7 @@ Vector3i ThetaStar3D::_get_closest_position_toward(const Vector3 from, const Vec
     Vector3i result;
     Vector3 resultf;
     Vector3 max = Vector3(_dimensions) - Vector3(1.0, 1.0, 1.0);
-    Vector3 min = _get_minimum_dimensions();
+    Vector3 min = _get_min_position();
     Vector3 direction_to = from.direction_to(to);
 
     for (size_t i = 0; i < Vector3::AXIS_COUNT; i++) {
@@ -570,7 +676,11 @@ Vector3i ThetaStar3D::_get_closest_position_toward(const Vector3 from, const Vec
 
 
 void ThetaStar3D::_get_point_path(Point<Vector3i>* const from, Point<Vector3i>* const to, LocalVector<const Point<Vector3i>*>& outPath) {
-    LocalVector<Point<Vector3i>*> open;
+	if (!from->enabled || !to->enabled) {
+		return;
+	}
+
+	LocalVector<Point<Vector3i>*> open;
     SortArray<Point<Vector3i>*, Point<Vector3i>::Comparator> sorter;
     bool is_path_found = false;
 
@@ -672,7 +782,7 @@ bool ThetaStar3D::_has_line_of_sight_helper(LineOfSightArguments& args) { // tod
     if (args.balance >= args.get_big_axis_distance()) {
         bool point_to_check_1_exists = _points.lookup(id_to_check_1, point_to_check_1);
 
-        // only check if point if it is enabled if it exists, otherwise just assume the space if see-through
+    	// only check if point is enabled if it exists, otherwise just assume the space if see-through
         if (point_to_check_1_exists) {
             result = point_to_check_1->enabled;
         }
@@ -687,7 +797,7 @@ bool ThetaStar3D::_has_line_of_sight_helper(LineOfSightArguments& args) { // tod
         if (args.balance != 0) {
             bool point_to_check_1_exists = _points.lookup(id_to_check_1, point_to_check_1);
 
-            // only check if point if it is enabled if it exists, otherwise just assume the space if see-through
+            // only check if point is enabled if it exists, otherwise just assume the space if see-through
             if (point_to_check_1_exists) {
                 result = point_to_check_1->enabled;
             }
@@ -699,7 +809,7 @@ bool ThetaStar3D::_has_line_of_sight_helper(LineOfSightArguments& args) { // tod
             bool point_to_check_2_exists = _points.lookup(id_to_check_2, point_to_check_2);
             bool point_to_check_3_exists = _points.lookup(id_to_check_3, point_to_check_3);
 
-            // only check if point if it is enabled if it exists, otherwise just assume the space if see-through
+        	// only check if point is enabled if it exists, otherwise just assume the space if see-through
             if (point_to_check_2_exists) {
                 result = point_to_check_2->enabled;
             }
@@ -943,9 +1053,11 @@ int64_t ThetaStar3D::_hash_position(Vector3i position) {
 	int64_t y = position.y;
 	int64_t z = position.z;
 
-	x += _dimensions.x - 1;
-	y += _dimensions.y - 1;
-	z += _dimensions.z - 1;
+	Vector3i max = _get_max_position();
+
+	x += max.x;
+	y += max.y;
+	z += max.z;
 
 	result = x + (dimension_x * y) + (dimension_x * dimension_y * z);
 
@@ -1000,7 +1112,7 @@ real_t ThetaStar3D::_estimate_edge_cost(int64_t from, int64_t to) {
 bool ThetaStar3D::_is_position_valid(const Vector3i position, bool warn) const {
     bool result = false;
     Vector3i max = _dimensions - Vector3i(1, 1, 1);
-    Vector3i min = _get_minimum_dimensions();
+    Vector3i min = _get_min_position();
     Vector3i clamped_position = position.clamp(min, max);
 
     result = position == clamped_position;
@@ -1013,12 +1125,21 @@ bool ThetaStar3D::_is_position_valid(const Vector3i position, bool warn) const {
 }
 
 
-Vector3i ThetaStar3D::_get_minimum_dimensions() const {
+Vector3i ThetaStar3D::_get_min_position() const {
     Vector3i result;
 
     result = -_dimensions + Vector3i(1, 1, 1);
 
     return result;
+}
+
+
+Vector3i ThetaStar3D::_get_max_position() const {
+	Vector3i result;
+
+	result = _dimensions - Vector3i(1, 1, 1);
+
+	return result;
 }
 
 };

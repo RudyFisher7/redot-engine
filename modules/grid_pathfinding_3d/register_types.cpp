@@ -37,7 +37,6 @@
 #include "aabbi.h"
 #include "a_star_grid_3d.h"
 #include "theta_star_3d.h"
-#include "utheta_star_3d.h"
 
 void initialize_grid_pathfinding_3d_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_CORE) {
@@ -47,7 +46,6 @@ void initialize_grid_pathfinding_3d_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<AABBi>();
 	ClassDB::register_class<AStarGrid3D>();
 	ClassDB::register_class<ThetaStar::ThetaStar3D>();
-	ClassDB::register_class<ThetaStar::UThetaStar3D>();
 }
 
 void uninitialize_grid_pathfinding_3d_module(ModuleInitializationLevel p_level) {

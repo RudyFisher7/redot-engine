@@ -22,15 +22,15 @@ class ThetaStar3D: public RefCounted {
 
 
 protected:
-    Vector3i _dimensions = Vector3i(1, 1, 1);
+    Vector3i _dimensions;
     OAHashMap<int64_t, Point<Vector3i>*> _points;
 	bool _is_line_of_sight_check_enabled = false;
     int64_t _number_of_disabled_points = 0;
     uint8_t _closed_counter = 0u;
-	bool _is_dirty = false;
+	bool _is_dirty = false;//true if the graph needs to be rebuilt
 
 public:
-    ThetaStar3D() = default;
+    ThetaStar3D();
     virtual ~ThetaStar3D();
 
     void reserve(const uint32_t new_capacity);
@@ -39,28 +39,32 @@ public:
     Vector3i get_dimensions() const;
     int64_t get_size() const;
 	bool is_line_of_sight_check_enabled() const;
+	bool is_dirty() const;
     int64_t get_point_count() const;
     int64_t get_disabled_point_count() const;
     bool is_empty() const;
     int64_t get_capacity() const;
-    int64_t get_point_id(const Vector3i position);
+    int64_t get_point_id(const Vector3i position);//returns -1 if not found
     Vector3i get_point_position(const int64_t id) const;
-    int64_t get_point_hash(const Vector3i position);
+    int64_t get_point_hash(const Vector3i position);// just hashes the position
     bool is_position_valid_for_hashing(const Vector3i position) const;
     bool is_id_disabled(const int64_t id) const;
     bool is_position_disabled(const Vector3i position);
     bool has_id(const int64_t id);
-    bool has_point(const Vector3i position);
+    bool has_position(const Vector3i position);
 
     TypedArray<Vector3i> get_points() const;
     TypedArray<Vector3i> get_point_connections(const Vector3i position);
 
     // todo:: solve issue when 'to' is not reachable from 'from'
-    PackedInt64Array get_id_path_from_positions(const Vector3i from, const Vector3i to);
-    TypedArray<Vector3i> get_point_path_from_positions(const Vector3i from, const Vector3i to);
+    PackedInt64Array get_id_path_from_grid_positions(const Vector3i from, const Vector3i to);
+    TypedArray<Vector3i> get_grid_path_from_grid_positions(const Vector3i from, const Vector3i to);
+    TypedArray<Vector3> get_world_path_from_world_positions(const Vector3 from, const Vector3 to, const Vector3 cell_size = Vector3(1.0, 1.0, 1.0));
     PackedInt64Array get_id_path_from_ids(const int64_t from, const int64_t to);
-    TypedArray<Vector3i> get_point_path_from_ids(const int64_t from, const int64_t to);
-    TypedArray<Vector3> get_point_path_from_off_graph_positions(const Vector3 from, const Vector3 to);
+    TypedArray<Vector3i> get_grid_path_from_ids(const int64_t from, const int64_t to);
+    TypedArray<Vector3> get_world_path_from_ids(const int64_t from, const int64_t to, const Vector3 cell_size = Vector3(1.0, 1.0, 1.0));
+    TypedArray<Vector3> get_grid_path_from_off_grid_positions(const Vector3 from, const Vector3 to);// off-grid positions are still in grid space
+    TypedArray<Vector3> get_world_path_from_off_grid_world_positions(const Vector3 from, const Vector3 to, const Vector3 cell_size = Vector3(1.0, 1.0, 1.0));
 
 	void set_dimensions(const Vector3i dimensions);
 	void enable_line_of_sight_check(bool value = true);
@@ -99,7 +103,8 @@ protected:
 	GDVIRTUAL2RC(real_t, _estimate_edge_cost, int64_t, int64_t)
 
     bool _is_position_valid(const Vector3i position, const bool warn = false) const;
-    virtual Vector3i _get_minimum_dimensions() const;
+    virtual Vector3i _get_min_position() const;
+    virtual Vector3i _get_max_position() const;
 };
 
 };
